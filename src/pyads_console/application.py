@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
@@ -32,6 +33,8 @@ class ConsoleWindow(QMainWindow):
         super().__init__()
 
         self.plc: Connection | None = None
+
+        self.setWindowTitle("PyADS Console")
 
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
@@ -63,6 +66,8 @@ class ConsoleWindow(QMainWindow):
         inputs_layout.addWidget(self.check_connect)
 
         self.check_connect.stateChanged.connect(self.on_connect_changed)
+        for inp in self.inputs:
+            inp.returnPressed.connect(self.on_return_pressed)
 
         main_layout.addWidget(QLabel("Use the 'plc' variable for the local connection"))
 
@@ -82,6 +87,8 @@ class ConsoleWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         """Catch the 'exit' event to first shut down the console."""
         self.console.exit()
+        if self.plc:
+            self.plc.close()
 
     @property
     def inputs(self) -> Generator[QLineEdit, None, None]:
@@ -118,6 +125,11 @@ class ConsoleWindow(QMainWindow):
         """Callback when the checkbox gets (un)checked."""
         self.update_connect(Qt.CheckState(state) == Qt.CheckState.Checked)
 
+    @Slot()
+    def on_return_pressed(self) -> None:
+        """Callback when [Enter] was hit inside one of the boxes."""
+        self.check_connect.setChecked(True)
+
     def update_connect(self, is_checked: bool) -> None:
         """Change the connected state."""
         for inp in self.inputs:
@@ -125,28 +137,33 @@ class ConsoleWindow(QMainWindow):
 
         self.console.setDisabled(not is_checked)
 
-        if is_checked:
-            self.save_state()
+        if is_checked:  # Make connection
+            try:
+                host = self.input_host.text()
+                net_id = self.input_ams_id.text()
+                if not host and not net_id:
+                    host = self.DEFAULT_HOST
+                    net_id = self.DEFAULT_NET_ID
+                if host and not net_id:
+                    net_id = f"{host}.1.1"
+                elif not host and net_id:
+                    host = ".".join(net_id.split(".")[:4])
 
-            host = self.input_host.text()
-            net_id = self.input_ams_id.text()
-            if not host and not net_id:
-                host = self.DEFAULT_HOST
-                net_id = self.DEFAULT_NET_ID
-            if host and not net_id:
-                net_id = f"{host}.1.1"
-            elif not host and net_id:
-                host = ".".join(net_id.split(".")[:4])
+                port = int(self.input_ams_port.text() or self.DEFAULT_PORT)
 
-            port = int(self.input_ams_port.text() or self.DEFAULT_PORT)
+                self.plc = Connection(net_id, port, host)
+                assert self.plc is not None
+                self.plc.open()
+            except ValueError as err:
+                QMessageBox.critical(self, "Error", str(err), QMessageBox.Cancel)
 
-            self.plc = Connection(net_id, port, host)
-            assert self.plc is not None
-            self.plc.open()
+            if self.plc and self.plc.is_open:
+                self.save_state()  # Save only when successful
+                self.console.interpreter.locals["plc"] = self.plc
+                self.console.edit.setFocus()
 
-            self.console.interpreter.locals["plc"] = self.plc
-        else:
-            if self.plc:
+        else:  # Do disconnect
+            if self.plc and self.plc.is_open:
                 self.plc.close()
             self.plc = None
             self.console.interpreter.locals["plc"] = None
