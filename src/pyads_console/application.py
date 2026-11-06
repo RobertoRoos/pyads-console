@@ -1,4 +1,7 @@
+import json
+import tempfile
 from collections.abc import Generator
+from pathlib import Path
 
 import pyads
 from pyads import Connection
@@ -22,6 +25,8 @@ class ConsoleWindow(QMainWindow):
     DEFAULT_HOST = "127.0.0.1"
     DEFAULT_NET_ID = "127.0.0.1.1.1"
     DEFAULT_PORT = pyads.PORT_TC3PLC1
+
+    RESTORE_FILE = Path(tempfile.gettempdir()) / "pyads_console_restore.json"
 
     def __init__(self) -> None:
         super().__init__()
@@ -65,9 +70,12 @@ class ConsoleWindow(QMainWindow):
         main_layout.addWidget(self.console)
         self.console.eval_in_thread()
 
+        self.console.interpreter.locals["pyads"] = pyads
         self.console.interpreter.locals["clear"] = self.console.clear
 
         self.on_connect_changed(False)  # Initialize states by triggering the event
+
+        self.restore_state()
 
         self.show()
 
@@ -80,6 +88,30 @@ class ConsoleWindow(QMainWindow):
         yield self.input_host
         yield self.input_ams_id
         yield self.input_ams_port
+
+    def restore_state(self):
+        """Bring back the app from the last saved state."""
+        if not self.RESTORE_FILE.exists():
+            return
+
+        with self.RESTORE_FILE.open("r") as fh:
+            data = json.load(fh)
+            if host := data.get("host"):
+                self.input_host.setText(host)
+            if net_id := data.get("ams_net_id"):
+                self.input_ams_id.setText(net_id)
+            if port := data.get("port"):
+                self.input_ams_port.setText(str(port))
+
+    def save_state(self):
+        """Export the connection state to a temp file."""
+        data = {
+            "host": self.input_host.text(),
+            "ams_net_id": self.input_ams_id.text(),
+            "ams_net_port": self.input_ams_port.text(),
+        }
+        with self.RESTORE_FILE.open("w") as fh:
+            json.dump(data, fh)
 
     @Slot()
     def on_connect_changed(self, state) -> None:
@@ -94,6 +126,8 @@ class ConsoleWindow(QMainWindow):
         self.console.setDisabled(not is_checked)
 
         if is_checked:
+            self.save_state()
+
             host = self.input_host.text()
             net_id = self.input_ams_id.text()
             if not host and not net_id:
@@ -107,6 +141,7 @@ class ConsoleWindow(QMainWindow):
             port = int(self.input_ams_port.text() or self.DEFAULT_PORT)
 
             self.plc = Connection(net_id, port, host)
+            assert self.plc is not None
             self.plc.open()
 
             self.console.interpreter.locals["plc"] = self.plc
