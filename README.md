@@ -10,7 +10,12 @@ This is made with [`pyads`](https://github.com/stlehmann/pyads), [`PySide6`](htt
 
 ### How to install
 
-Clone and then install with `uv` (preferred):
+Perform a user-wide install with [pipx](https://pipx.pypa.io/stable/) through:
+```
+pipx install git+https://github.com/RobertoRoos/pyads-console@main 
+```
+
+Or clone and then install with `uv` (preferred over Pip):
 ```
 uv sync
 ```
