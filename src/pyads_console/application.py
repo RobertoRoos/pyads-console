@@ -19,6 +19,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .ads_extension import NestedSymbol
+
+_ = NestedSymbol  # Ensure the injection is performed
+
 
 class ConsoleWindow(QMainWindow):
     """Qt Window class for the main application."""
@@ -34,7 +38,7 @@ class ConsoleWindow(QMainWindow):
 
         self.plc: Connection | None = None
 
-        self.setWindowTitle("PyADS Console")
+        self.setWindowTitle("pyads Console")
 
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)

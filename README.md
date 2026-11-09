@@ -6,6 +6,17 @@ This is made with [`pyads`](https://github.com/stlehmann/pyads), [`PySide6`](htt
 
 ![Application screenshot](screenshot.jpg)
 
+## Features
+
+- Use the `plc` variable for the local ADS connection.
+- Returned symbols are patched with respect to the `pyads` default: there is a `__getattr__` implementation to automatically retrieve child symbols.  
+  E.g.:  
+  ```python
+  var = plc.get_symbol("GVL_Main.fbBlock")
+  sub_var = va.fOutput  # The PLC field `fOutput` must exist
+  sub_var.read()  # Ends up reading "GVL_Main.fbBlock.fOutput"
+  ``` 
+
 ## How to use
 
 ### How to install
